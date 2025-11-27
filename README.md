@@ -5,7 +5,6 @@ This project generates a 3D printable Yin Yang gimbal mechanism using TypeScript
 ## Project Structure
 
 - `yinyang.ts`: The main source code defining the geometry.
-- `index.html` & `viewer.js`: A web-based 3D viewer to preview the generated STL files.
 - `package.json`: Dependencies and scripts.
 
 ## Getting Started
