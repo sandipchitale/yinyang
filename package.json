@@ -1,0 +1,19 @@
+{
+  "name": "typescript",
+  "version": "1.0.0",
+  "description": "Generate 3D printable STL files for YinYang using TypeScript and JSCAD",
+  "main": "yinyang.ts",
+  "type": "module",
+  "scripts": {
+    "generate": "node yinyang.ts"
+  },
+  "dependencies": {
+    "@jscad/io": "^2.4.12",
+    "@jscad/modeling": "^2.12.6"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.0.0"
+  }
+}
