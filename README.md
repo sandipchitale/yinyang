@@ -44,6 +44,8 @@ To preview the generated models in an interactive 3D viewer:
 f3d --up=+Z --grid-absolute yinyang_assembly.stl
 ```
 
+![Yin Yang Gimbals](screenshots/yinyang.png)
+
 ## 3D Printing Guide
 
 ### Recommended Settings
