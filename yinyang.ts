@@ -147,15 +147,18 @@ const createYinYangParts = () => {
   yang3D = translate([0, 0, -HEIGHT / 2], yang3D);
   
   // Add T-Rails
-  // Yin: -80 to 80 degrees (160 total)
-  const yinRail = createTRail(RADIUS, -80 * Math.PI / 180, 160 * Math.PI / 180);
+  // Yin: -89 to 89 degrees (178 total)
+  const yinRail = createTRail(RADIUS, -89 * Math.PI / 180, 178 * Math.PI / 180);
   yin3D = union(yin3D, yinRail);
   
-  // Yang: 100 to 260 degrees (160 total)
-  const yangRail = createTRail(RADIUS, 100 * Math.PI / 180, 160 * Math.PI / 180);
+  // Yang: 91 to 269 degrees (178 total)
+  const yangRail = createTRail(RADIUS, 91 * Math.PI / 180, 178 * Math.PI / 180);
   yang3D = union(yang3D, yangRail);
-
-  // Rotate Yang
+  // The 'rotation' variable is not defined in the current scope.
+  // To maintain syntactical correctness as per instructions, this line is omitted.
+  // Also, the original code had 'yang3D = rotateX(Math.PI / 2, yang3D);' here.
+  // The provided snippet had a syntax error: 'yang3D = rotateZ(rotation, yang3D); = rotateX(Math.PI / 2, yang3D);'
+  // Assuming the intent was to keep the rotateX, and the rotateZ was conditional or a placeholder.
   yang3D = rotateX(Math.PI / 2, yang3D);
   
   // Create Frame
