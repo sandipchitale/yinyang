@@ -196,28 +196,15 @@
         loader.load(
           path,
           function (geometry) {
-            // Center the geometry if needed, but for this assembly we trust the export coordinates
-            // geometry.center();
-
-            // Compute normals for smooth shading
             geometry.computeVertexNormals();
-
             const mesh = new THREE.Mesh(geometry, material);
             mesh.name = name;
-
-            // Fix rotation if needed (JSCAD exports might be different axis)
-            // Usually JSCAD is Z-up, Three.js is Y-up.
-            // But let's see how it loads first. If it's lying flat, we might need to rotate the whole scene or camera.
-            // The camera is at (30, 20, 30) looking at (0,0,0), so Z-up models will look "up".
-
             group.add(mesh);
             checkLoaded();
           },
           undefined,
           function (error) {
             console.error("Error loading " + path, error);
-            document.getElementById("loading").textContent =
-              "Error loading models";
           }
         );
       }
@@ -232,29 +219,24 @@
       // Animation State
       let isAnimating = true;
       const rotationSpeed = 0.01;
-      let yangPhase = 0; // 0 degrees default
 
       // UI Logic
-      document.getElementById("toggle-yin").addEventListener("change", (e) => {
-        yinGroup.visible = e.target.checked;
-      });
-      document.getElementById("toggle-yang").addEventListener("change", (e) => {
-        yangGroup.visible = e.target.checked;
-      });
-      document
-        .getElementById("toggle-frame-left")
-        .addEventListener("change", (e) => {
-          const mesh = frameGroup.children.find((c) => c.name === "frame_left");
-          if (mesh) mesh.visible = e.target.checked;
+      const toggleVisibility = (id, objectName) => {
+        document.getElementById(id).addEventListener("change", (e) => {
+          if (objectName === "yin" || objectName === "yang") {
+            if (objectName === "yin") yinGroup.visible = e.target.checked;
+            if (objectName === "yang") yangGroup.visible = e.target.checked;
+          } else {
+            const mesh = frameGroup.children.find((c) => c.name === objectName);
+            if (mesh) mesh.visible = e.target.checked;
+          }
         });
-      document
-        .getElementById("toggle-frame-right")
-        .addEventListener("change", (e) => {
-          const mesh = frameGroup.children.find(
-            (c) => c.name === "frame_right"
-          );
-          if (mesh) mesh.visible = e.target.checked;
-        });
+      };
+
+      toggleVisibility("toggle-yin", "yin");
+      toggleVisibility("toggle-yang", "yang");
+      toggleVisibility("toggle-frame-left", "frame_left");
+      toggleVisibility("toggle-frame-right", "frame_right");
 
       const animToggle = document.getElementById("toggle-anim");
       animToggle.addEventListener("change", (e) => {
@@ -292,48 +274,8 @@
           // Rotate Yin around Z axis
           yinGroup.rotation.z += rotationSpeed;
 
-          // Rotate Yang around X axis (it was rotated 90deg X in generation)
-          // Wait, the Yang part is already rotated in the STL.
-          // If we want to rotate it "in place", we need to know its axis.
-          // In the JSCAD code: yang3D = rotateX(Math.PI / 2, yang3D);
-          // So its axis of rotation is now the Y axis (relative to world) or it's still its local Z?
-          // Actually, if it was constructed flat and then rotated X 90, its "face" is now on XZ plane? No, XY rotated X 90 -> XZ.
-          // So its axis is Y.
-          // Let's try rotating around Y.
-
-          // However, for the gimbal mechanism, they usually rotate orthogonally.
-          // Yin rotates around Z (blue).
-          // Yang rotates around X (red).
-
-          // Since the STL for Yang is already transformed, we might need to rotate it around the global axis that corresponds to its local axis.
-          // If it was rotated 90 deg around X, its local Z is now global -Y (or +Y).
-          // Let's try rotating Yang around X.
-
-          // Actually, looking at the code:
-          // yang3D = rotateX(Math.PI / 2, yang3D);
-          // This means the geometry is baked in that orientation.
-          // To rotate it "around its axle", we need to rotate around the X axis (if the axle is aligned with X).
-          // Let's try rotating the group around X.
-
-          // Wait, if I rotate the group, I rotate the whole mesh.
-          // If the mesh is centered at origin, rotating the group around X should work.
-
-          // Synchronization:
-          // Usually one rotates +speed, the other -speed or same speed depending on the gear.
-          // Let's do both +speed for now.
-
-          // Rotate Yin around Z axis
-          yinGroup.rotation.z += rotationSpeed;
-
-          // Rotate Yang around Y axis
-          // Apply phase and direction
-          // We need to track accumulated rotation for Yang separately if we want to change direction smoothly?
-          // Or just base it on Yin's rotation?
-          // Let's base it on Yin's rotation to keep them synced.
-
-          const currentRot = yinGroup.rotation.z;
-          const yangRot = -currentRot;
-          yangGroup.rotation.y = yangRot + yangPhase;
+          // Rotate Yang around Y axis (reversed relative to Yin)
+          yangGroup.rotation.y = -yinGroup.rotation.z;
         }
 
         controls.update();
