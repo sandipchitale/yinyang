@@ -472,10 +472,14 @@
                 // Yang rotor rotates around Y.
                 // Direction is reversed relative to Yin (-speed).
                 // So Yang rotor moves CW (-).
-                // Gear should move CCW (+).
-                // But wait, the gear's local axis might be flipped due to the X-rotation.
-                // Let's try +speed first.
-                item.mesh.rotation.z += pinionSpeed;
+                // Yang rotor rotates around Y.
+                // Direction is reversed relative to Yin (-speed).
+                // So Yang rotor moves CW (-).
+                // Gear should move CCW (+) relative to Y axis.
+                // Gear local Z axis is -Y.
+                // Positive rotation around Y is Negative rotation around -Y.
+                // So we need -= speed.
+                item.mesh.rotation.z -= pinionSpeed;
               }
             });
           }

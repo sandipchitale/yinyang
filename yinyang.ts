@@ -86,13 +86,21 @@ const createPinion = () => {
     gearShape = union(gearShape, positionedTooth);
   }
   
-  // Axle hole
-  const hole = circle({ radius: HOLE_RADIUS, segments: 16 });
-  gearShape = subtract(gearShape, hole);
+  // Axle (instead of hole)
+  // const hole = circle({ radius: HOLE_RADIUS, segments: 16 });
+  // gearShape = subtract(gearShape, hole);
   
   let gear = extrudeLinear({ height: FACE_WIDTH }, gearShape);
-  // Center in Z
-  return translate([0, 0, -FACE_WIDTH / 2], gear);
+  // Center gear in Z
+  gear = translate([0, 0, -FACE_WIDTH / 2], gear);
+  
+  // Create Axle
+  // Protrude 0.2mm on each side
+  const axleHeight = FACE_WIDTH + 0.4;
+  const axle = cylinder({ radius: HOLE_RADIUS, height: axleHeight, segments: 16 });
+  // Cylinder is centered at [0,0,0] by default, which matches our centered gear.
+  
+  return union(gear, axle);
 };
 
 // Helper to create the T-Rail 2D profile
