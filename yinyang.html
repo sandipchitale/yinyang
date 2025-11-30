@@ -248,11 +248,11 @@
         const RAIL_STEM_LENGTH = 0.6;
         const RAIL_HEAD_THICKNESS = 0.2;
         const GEAR_MODULE = 0.08;
-        const GEAR_TEETH = 64;
+        const GEAR_TEETH = 32;
 
         const pinionPitchRadius = (GEAR_MODULE * GEAR_TEETH) / 2;
         const rackRadius = RADIUS + RAIL_STEM_LENGTH + RAIL_HEAD_THICKNESS;
-        const centerDist = rackRadius + pinionPitchRadius - 1.0; // Push in by 1.0mm
+        const centerDist = rackRadius + pinionPitchRadius; // Tangent pitch circles
 
         const gearAngles = [45, 90, 135, -45, -90, -135].map(
           (a) => (a * Math.PI) / 180
@@ -464,21 +464,19 @@
 
             gearMeshes.forEach((item) => {
               if (item.type === "yin") {
-                // Yin rotor rotates +Z.
-                // Gear is external.
-                // If rotor moves CCW (+), gear moves CW (-).
+                // Yin rotor rotates +Z (CCW).
+                // Gear is external and fixed to frame.
+                // For correct meshing, gear must rotate CW (-Z).
+                // User Requirement: Gears in XY plane should turn clockwise when looking from +Z.
+                // This corresponds to decreasing rotation.z.
                 item.mesh.rotation.z -= pinionSpeed;
               } else {
                 // Yang rotor rotates around Y.
                 // Direction is reversed relative to Yin (-speed).
-                // So Yang rotor moves CW (-).
-                // Yang rotor rotates around Y.
-                // Direction is reversed relative to Yin (-speed).
-                // So Yang rotor moves CW (-).
-                // Gear should move CCW (+) relative to Y axis.
-                // Gear local Z axis is -Y.
-                // Positive rotation around Y is Negative rotation around -Y.
-                // So we need -= speed.
+                // So Yang rotor moves CW (-Y) when looking from Top (+Y).
+                // Gear should move CCW (+Y) relative to World Y axis.
+                // Gear local Z axis is aligned with World -Y.
+                // A negative rotation around local Z (-MeshZ) results in a CCW rotation around World Y.
                 item.mesh.rotation.z -= pinionSpeed;
               }
             });

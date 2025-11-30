@@ -85,6 +85,12 @@ const createPinion = () => {
     positionedTooth = rotateZ(angle, positionedTooth);
     gearShape = union(gearShape, positionedTooth);
   }
+
+  // Add Marker Hole for Rotation Visibility
+  const markerRadius = MODULE * 2.5;
+  const markerDistance = pitchRadius * 0.6;
+  const marker = translate([markerDistance, 0, 0], circle({ radius: markerRadius, segments: 16 }));
+  gearShape = subtract(gearShape, marker);
   
   // Axle (instead of hole)
   // const hole = circle({ radius: HOLE_RADIUS, segments: 16 });
@@ -351,7 +357,7 @@ const createYinYangParts = () => {
   
   const pinionPitchRadius = (CONFIG.GEAR.MODULE * CONFIG.GEAR.PINION_TEETH) / 2;
   const rackRadius = radius + CONFIG.RAIL.STEM_LENGTH + CONFIG.RAIL.HEAD_THICKNESS;
-  const centerDist = rackRadius + pinionPitchRadius - 1.0; // Push in by 1.0mm for better mesh
+  const centerDist = rackRadius + pinionPitchRadius; // Tangent pitch circles
   
   // Yin Gears (XY Plane)
   const yinGears: any[] = [];
