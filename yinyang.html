@@ -109,6 +109,18 @@
           <input type="checkbox" id="toggle-anim" checked />
           <label for="toggle-anim">Animate (Click Model to Toggle)</label>
         </div>
+        <div class="control-item">
+          <input type="checkbox" id="toggle-gears" checked />
+          <label for="toggle-gears">Show Gears</label>
+        </div>
+        <div class="control-item">
+          <input type="checkbox" id="toggle-gears-left" checked />
+          <label for="toggle-gears-left">Show Left Gears</label>
+        </div>
+        <div class="control-item">
+          <input type="checkbox" id="toggle-gears-right" checked />
+          <label for="toggle-gears-right">Show Right Gears</label>
+        </div>
       </div>
       <div id="status">Click anywhere on the model to pause/resume.</div>
     </div>
@@ -164,6 +176,11 @@
         roughness: 0.4,
         metalness: 0.1,
       });
+      const materialGears = new THREE.MeshStandardMaterial({
+        color: 0xffffff, // White color for gears
+        roughness: 0.3,
+        metalness: 0.8,
+      });
       const materialFrame = new THREE.MeshStandardMaterial({
         color: 0x888888,
         roughness: 0.7,
@@ -174,15 +191,19 @@
       const yinGroup = new THREE.Group();
       const yangGroup = new THREE.Group();
       const frameGroup = new THREE.Group();
+      const gearsGroupLeft = new THREE.Group();
+      const gearsGroupRight = new THREE.Group();
       // Initial rotation handled by animation loop now
       scene.add(yinGroup);
       scene.add(yangGroup);
       scene.add(frameGroup);
+      scene.add(gearsGroupLeft);
+      scene.add(gearsGroupRight);
 
       // Loaders
       const loader = new STLLoader();
       let loadedCount = 0;
-      const totalModels = 4;
+      const totalModels = 5;
 
       function checkLoaded() {
         loadedCount++;
@@ -213,8 +234,130 @@
       // Assuming files are in the same directory
       loadSTL("./yin.stl", materialYin, yinGroup, "yin");
       loadSTL("./yang.stl", materialYang, yangGroup, "yang");
+      // loadSTL("./gears.stl", materialGears, gearsGroup, "gears"); // Don't load static gears
       loadSTL("./frame_left.stl", materialFrame, frameGroup, "frame_left");
       loadSTL("./frame_right.stl", materialFrame, frameGroup, "frame_right");
+
+      // Load Pinion and instantiate
+      const gearMeshes = [];
+      loader.load("./pinion.stl", function (geometry) {
+        geometry.computeVertexNormals();
+
+        // Gear Configuration (must match yinyang.ts)
+        const RADIUS = 10;
+        const RAIL_STEM_LENGTH = 0.6;
+        const RAIL_HEAD_THICKNESS = 0.2;
+        const GEAR_MODULE = 0.08;
+        const GEAR_TEETH = 64;
+
+        const pinionPitchRadius = (GEAR_MODULE * GEAR_TEETH) / 2;
+        const rackRadius = RADIUS + RAIL_STEM_LENGTH + RAIL_HEAD_THICKNESS;
+        const centerDist = rackRadius + pinionPitchRadius - 1.0; // Push in by 1.0mm
+
+        const gearAngles = [45, 90, 135, -45, -90, -135].map(
+          (a) => (a * Math.PI) / 180
+        );
+
+        // Yin Gears (XY Plane)
+        gearAngles.forEach((angle) => {
+          const mesh = new THREE.Mesh(geometry, materialGears);
+          // Position: translate X by centerDist, then rotate Z by angle
+          // But we need to animate rotation around its own axis.
+          // So we should put it in a container?
+          // Or just update rotation.z in animation loop?
+          // If we rotate the mesh around Z, it rotates around the world Z (if at origin) or its local Z.
+          // If we translate it first, its local origin is still at the mesh center.
+          // So mesh.rotation.z rotates around its center.
+          // But we also need to position it.
+          // Order: Rotate(spin) -> Translate(radius) -> Rotate(position on arc)
+
+          // Actually, Three.js applies scale * rotation * translation.
+          // If we set mesh.position, that's the translation.
+          // If we set mesh.rotation, that's the rotation.
+          // But we want to rotate around its center (spin) AND rotate around the world center (position).
+          // Easier to use a parent object for the position.
+
+          const pivot = new THREE.Object3D();
+          pivot.rotation.z = angle;
+
+          // Assign to Left or Right group based on position
+          // For Yin gears (XY plane):
+          // X = centerDist * cos(angle)
+          // If X < 0 -> Left, X >= 0 -> Right
+          const xPos = centerDist * Math.cos(angle);
+          if (xPos < -0.001) {
+            gearsGroupLeft.add(pivot);
+          } else {
+            gearsGroupRight.add(pivot);
+          }
+
+          mesh.position.x = centerDist;
+          // Rotate mesh to align teeth?
+          // mesh.rotation.z = ...
+
+          pivot.add(mesh);
+
+          gearMeshes.push({ mesh: mesh, type: "yin", angle: angle });
+        });
+
+        // Yang Gears (XZ Plane)
+        gearAngles.forEach((angle) => {
+          const mesh = new THREE.Mesh(geometry, materialGears);
+
+          const pivot = new THREE.Object3D();
+          // Yang frame is rotated 90 deg around X.
+          // So we rotate the pivot 90 deg around X first?
+          // Or we create a pivot in the XZ plane.
+
+          // Let's create a "YangFrame" container that is rotated?
+          // Or just do it manually.
+
+          // Rotate pivot to align with Yang frame
+          pivot.rotation.x = Math.PI / 2;
+
+          // Then rotate around its local Z (which is world Y now) to position on arc
+          // Wait, rotation order.
+          // If we rotate X 90, local Z becomes world -Y.
+          // We want to position gears on the ring.
+          // The ring is in the plane perpendicular to world X? No.
+          // Yang rotor rotates around Y (in our animation logic).
+          // So Yang frame is in XZ plane?
+          // Let's verify: yangGroup.rotation.y.
+          // So Yang rotor axis is Y.
+          // So the ring is in XZ plane.
+
+          // So we want to rotate the pivot around Y to position the gear.
+          // But we can reuse the Z-rotation logic if we nest it properly.
+
+          const subPivot = new THREE.Object3D();
+          subPivot.rotation.z = angle; // Position on the ring (if ring was XY)
+
+          // Now rotate the whole thing to XZ plane
+          const mainPivot = new THREE.Object3D();
+          mainPivot.rotation.x = Math.PI / 2;
+          mainPivot.add(subPivot);
+
+          // For Yang gears (XZ plane):
+          // They are rotated 90 deg around X.
+          // Original position (before X rot): x = centerDist * cos(angle), y = centerDist * sin(angle), z = 0
+          // After X rot 90: x' = x, y' = 0, z' = y
+          // So X coordinate is preserved.
+          // X = centerDist * cos(angle)
+          const xPos = centerDist * Math.cos(angle);
+          if (xPos < -0.001) {
+            gearsGroupLeft.add(mainPivot);
+          } else {
+            gearsGroupRight.add(mainPivot);
+          }
+
+          mesh.position.x = centerDist;
+          subPivot.add(mesh);
+
+          gearMeshes.push({ mesh: mesh, type: "yang", angle: angle });
+        });
+
+        checkLoaded();
+      });
 
       // Animation State
       let isAnimating = true;
@@ -237,6 +380,28 @@
       toggleVisibility("toggle-yang", "yang");
       toggleVisibility("toggle-frame-left", "frame_left");
       toggleVisibility("toggle-frame-right", "frame_right");
+
+      document
+        .getElementById("toggle-gears")
+        .addEventListener("change", (e) => {
+          const checked = e.target.checked;
+          gearsGroupLeft.visible = checked;
+          gearsGroupRight.visible = checked;
+          // Update sub-checkboxes
+          document.getElementById("toggle-gears-left").checked = checked;
+          document.getElementById("toggle-gears-right").checked = checked;
+        });
+
+      document
+        .getElementById("toggle-gears-left")
+        .addEventListener("change", (e) => {
+          gearsGroupLeft.visible = e.target.checked;
+        });
+      document
+        .getElementById("toggle-gears-right")
+        .addEventListener("change", (e) => {
+          gearsGroupRight.visible = e.target.checked;
+        });
 
       const animToggle = document.getElementById("toggle-anim");
       animToggle.addEventListener("change", (e) => {
@@ -276,6 +441,44 @@
 
           // Rotate Yang around Y axis (reversed relative to Yin)
           yangGroup.rotation.y = -yinGroup.rotation.z;
+
+          // Animate Gears
+          if (typeof gearMeshes !== "undefined") {
+            // Gear Ratio
+            // Linear speed v = omega_rotor * rackRadius
+            // omega_pinion = v / pinionPitchRadius
+            // omega_pinion = omega_rotor * (rackRadius / pinionPitchRadius)
+
+            // We need these constants available here.
+            const RADIUS = 10;
+            const RAIL_STEM_LENGTH = 0.6;
+            const RAIL_HEAD_THICKNESS = 0.2;
+            const GEAR_MODULE = 0.08;
+            const GEAR_TEETH = 32;
+
+            const pinionPitchRadius = (GEAR_MODULE * GEAR_TEETH) / 2;
+            const rackRadius = RADIUS + RAIL_STEM_LENGTH + RAIL_HEAD_THICKNESS;
+
+            const gearRatio = rackRadius / pinionPitchRadius;
+            const pinionSpeed = rotationSpeed * gearRatio;
+
+            gearMeshes.forEach((item) => {
+              if (item.type === "yin") {
+                // Yin rotor rotates +Z.
+                // Gear is external.
+                // If rotor moves CCW (+), gear moves CW (-).
+                item.mesh.rotation.z -= pinionSpeed;
+              } else {
+                // Yang rotor rotates around Y.
+                // Direction is reversed relative to Yin (-speed).
+                // So Yang rotor moves CW (-).
+                // Gear should move CCW (+).
+                // But wait, the gear's local axis might be flipped due to the X-rotation.
+                // Let's try +speed first.
+                item.mesh.rotation.z += pinionSpeed;
+              }
+            });
+          }
         }
 
         controls.update();
