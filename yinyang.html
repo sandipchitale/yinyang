@@ -252,7 +252,7 @@
 
         const pinionPitchRadius = (GEAR_MODULE * GEAR_TEETH) / 2;
         const rackRadius = RADIUS + RAIL_STEM_LENGTH + RAIL_HEAD_THICKNESS;
-        const centerDist = rackRadius + pinionPitchRadius; // Tangent pitch circles
+        const centerDist = rackRadius + pinionPitchRadius + 0.5; // Tangent pitch circles + 0.5mm offset
 
         const gearAngles = [45, 90, 135, -45, -90, -135].map(
           (a) => (a * Math.PI) / 180

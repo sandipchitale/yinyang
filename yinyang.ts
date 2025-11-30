@@ -357,7 +357,7 @@ const createYinYangParts = () => {
   
   const pinionPitchRadius = (CONFIG.GEAR.MODULE * CONFIG.GEAR.PINION_TEETH) / 2;
   const rackRadius = radius + CONFIG.RAIL.STEM_LENGTH + CONFIG.RAIL.HEAD_THICKNESS;
-  const centerDist = rackRadius + pinionPitchRadius; // Tangent pitch circles
+  const centerDist = rackRadius + pinionPitchRadius + 0.5; // Tangent pitch circles + 0.5mm offset
   
   // Yin Gears (XY Plane)
   const yinGears: any[] = [];
