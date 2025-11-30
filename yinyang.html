@@ -90,12 +90,8 @@
       <h1>Yin Yang Gimbal</h1>
       <div class="control-group">
         <div class="control-item">
-          <input type="checkbox" id="toggle-yin" checked />
-          <label for="toggle-yin">Show Yin Rotor</label>
-        </div>
-        <div class="control-item">
-          <input type="checkbox" id="toggle-yang" checked />
-          <label for="toggle-yang">Show Yang Rotor</label>
+          <input type="checkbox" id="toggle-enclosure" checked />
+          <label for="toggle-enclosure">Show Glass Shells</label>
         </div>
         <div class="control-item">
           <input type="checkbox" id="toggle-frame-left" checked />
@@ -164,6 +160,16 @@
         roughness: 0.4,
         metalness: 0.1,
       });
+      const materialGlass = new THREE.MeshPhysicalMaterial({
+        color: 0xffffff,
+        metalness: 0,
+        roughness: 0.1,
+        transmission: 0.9, // Glass-like
+        thickness: 1.5,
+        transparent: true,
+        opacity: 0.3, // Very transparent
+        side: THREE.DoubleSide,
+      });
       const materialFrame = new THREE.MeshStandardMaterial({
         color: 0x888888,
         roughness: 0.7,
@@ -182,7 +188,7 @@
       // Loaders
       const loader = new STLLoader();
       let loadedCount = 0;
-      const totalModels = 4;
+      const totalModels = 5;
 
       function checkLoaded() {
         loadedCount++;
@@ -215,6 +221,7 @@
       loadSTL("./yang.stl", materialYang, yangGroup, "yang");
       loadSTL("./frame_left.stl", materialFrame, frameGroup, "frame_left");
       loadSTL("./frame_right.stl", materialFrame, frameGroup, "frame_right");
+      loadSTL("./glass_panels.stl", materialGlass, frameGroup, "glass_panels");
 
       // Animation State
       let isAnimating = true;
@@ -222,21 +229,37 @@
 
       // UI Logic
       const toggleVisibility = (id, objectName) => {
-        document.getElementById(id).addEventListener("change", (e) => {
-          if (objectName === "yin" || objectName === "yang") {
-            if (objectName === "yin") yinGroup.visible = e.target.checked;
-            if (objectName === "yang") yangGroup.visible = e.target.checked;
+        const el = document.getElementById(id);
+        if (!el) {
+          console.error(`Element with id ${id} not found!`);
+          return;
+        }
+        el.addEventListener("change", (e) => {
+          console.log(`Toggling ${objectName} to ${e.target.checked}`);
+
+          // Special case for Yin/Yang groups if needed, but we are using direct mesh names now?
+          // Wait, yin.stl and yang.stl are loaded into yinGroup and yangGroup.
+          // frame_left, frame_right, glass_panels are in frameGroup.
+
+          if (objectName === "yin") {
+            yinGroup.visible = e.target.checked;
+          } else if (objectName === "yang") {
+            yangGroup.visible = e.target.checked;
           } else {
+            // Search in frameGroup
             const mesh = frameGroup.children.find((c) => c.name === objectName);
-            if (mesh) mesh.visible = e.target.checked;
+            if (mesh) {
+              mesh.visible = e.target.checked;
+            } else {
+              console.warn(`Mesh ${objectName} not found in frameGroup`);
+            }
           }
         });
       };
 
-      toggleVisibility("toggle-yin", "yin");
-      toggleVisibility("toggle-yang", "yang");
       toggleVisibility("toggle-frame-left", "frame_left");
       toggleVisibility("toggle-frame-right", "frame_right");
+      toggleVisibility("toggle-enclosure", "glass_panels");
 
       const animToggle = document.getElementById("toggle-anim");
       animToggle.addEventListener("change", (e) => {

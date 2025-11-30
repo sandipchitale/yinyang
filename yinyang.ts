@@ -1,6 +1,6 @@
 // @ts-ignore
 import primitives from '@jscad/modeling/src/primitives/index.js';
-const { circle, rectangle, cuboid } = primitives;
+const { circle, rectangle, cuboid, sphere } = primitives;
 // @ts-ignore
 import extrusions from '@jscad/modeling/src/operations/extrusions/index.js';
 const { extrudeLinear, extrudeRotate } = extrusions;
@@ -95,7 +95,28 @@ const createFrame = (radius: number) => {
   frame = subtract(frame, yinGrooveCutter);
   frame = subtract(frame, yangGrooveCutter);
   
-  return frame;
+  return { frame, yinRingSolid, yangRingSolid };
+};
+
+const createGlassPanels = (radius: number, yinRingSolid: any, yangRingSolid: any) => {
+  // Glass Sphere Shell
+  // Inner Radius: Matches Frame Inner Radius (10.2)
+  // Outer Radius: Slightly less than Frame Outer Radius (11.0 vs 11.4)
+  // This ensures it sits "inside" the frame structure but fills the gaps.
+  const innerRadius = radius + 0.2;
+  const outerRadius = radius + 1.0;
+  
+  const outerSphere = sphere({ radius: outerRadius, segments: 64 });
+  const innerSphere = sphere({ radius: innerRadius, segments: 64 });
+  
+  let glassSphere = subtract(outerSphere, innerSphere);
+  
+  // Subtract the Solid Frame Rings
+  // This cuts the sphere into 8 segments that fit between the rings.
+  glassSphere = subtract(glassSphere, yinRingSolid);
+  glassSphere = subtract(glassSphere, yangRingSolid);
+  
+  return glassSphere;
 };
 
 const createYinYangParts = () => {
@@ -103,68 +124,23 @@ const createYinYangParts = () => {
   const smallRadius = RADIUS / 2;
   const dotRadius = RADIUS / 8;
 
-  // Base Circle
-  const baseCircle = circle({ radius: RADIUS, segments: 128 });
-
-  // Split Rectangles
-  const rightRect = translate([RADIUS / 2 + GAP/2, 0, 0], rectangle({ size: [RADIUS - GAP/2, RADIUS * 2] }));
-  const leftRect = translate([-RADIUS / 2 - GAP/2, 0, 0], rectangle({ size: [RADIUS - GAP/2, RADIUS * 2] }));
-
-  const rightHalf = intersect(baseCircle, rightRect);
-  const leftHalf = intersect(baseCircle, leftRect);
-
-  // S-Curve Circles
-  const yinHeadRadius = smallRadius - GAP;
-  const yinTailRadius = smallRadius + GAP;
-  const yangHeadRadius = smallRadius - GAP;
-  const yangTailRadius = smallRadius + GAP;
-
-  const topCircleYinAdd = translate([0, smallRadius, 0], circle({ radius: yinHeadRadius, segments: 64 }));
-  const bottomCircleYinSub = translate([0, -smallRadius, 0], circle({ radius: yinTailRadius, segments: 64 }));
-  const bottomCircleYangAdd = translate([0, -smallRadius, 0], circle({ radius: yangHeadRadius, segments: 64 }));
-  const topCircleYangSub = translate([0, smallRadius, 0], circle({ radius: yangTailRadius, segments: 64 }));
-  
-  // Dots (Holes)
-  const topDot = translate([0, smallRadius, 0], circle({ radius: dotRadius, segments: 32 }));
-  const bottomDot = translate([0, -smallRadius, 0], circle({ radius: dotRadius, segments: 32 }));
-
-  // Yin Construction
-  let yin2D = union(rightHalf, topCircleYinAdd);
-  yin2D = subtract(yin2D, bottomCircleYinSub);
-  yin2D = subtract(yin2D, topDot);
-
-  // Yang Construction
-  let yang2D = union(leftHalf, bottomCircleYangAdd);
-  yang2D = subtract(yang2D, topCircleYangSub);
-  yang2D = subtract(yang2D, bottomDot);
-
-  // Extrude
-  let yin3D = extrudeLinear({ height: HEIGHT }, yin2D);
-  let yang3D = extrudeLinear({ height: HEIGHT }, yang2D);
-
-  // Center in Z
-  yin3D = translate([0, 0, -HEIGHT / 2], yin3D);
-  yang3D = translate([0, 0, -HEIGHT / 2], yang3D);
-  
   // Add T-Rails
   // Yin: -89 to 89 degrees (178 total)
   const yinRail = createTRail(RADIUS, -89 * Math.PI / 180, 178 * Math.PI / 180);
-  yin3D = union(yin3D, yinRail);
+  let yin3D = yinRail;
   
   // Yang: 91 to 269 degrees (178 total)
   const yangRail = createTRail(RADIUS, 91 * Math.PI / 180, 178 * Math.PI / 180);
-  yang3D = union(yang3D, yangRail);
-  // The 'rotation' variable is not defined in the current scope.
-  // To maintain syntactical correctness as per instructions, this line is omitted.
-  // Also, the original code had 'yang3D = rotateX(Math.PI / 2, yang3D);' here.
-  // The provided snippet had a syntax error: 'yang3D = rotateZ(rotation, yang3D); = rotateX(Math.PI / 2, yang3D);'
-  // Assuming the intent was to keep the rotateX, and the rotateZ was conditional or a placeholder.
+  let yang3D = yangRail;
   yang3D = rotateX(Math.PI / 2, yang3D);
   
-  // Create Frame
-  const frame = createFrame(RADIUS);
+  // Create Frame and Glass Panels
+  
+  // Create Frame and Glass Panels
+  const { frame, yinRingSolid, yangRingSolid } = createFrame(RADIUS);
+  const glassPanels = createGlassPanels(RADIUS, yinRingSolid, yangRingSolid);
 
-  return { yin3D, yang3D, frame };
+  return { yin3D, yang3D, frame, glassPanels };
 };
 
 const splitFrame = (frame: any, radius: number) => {
@@ -190,14 +166,15 @@ const exportSTL = (filename: string, solids: any) => {
 };
 
 const main = () => {
-  const { yin3D, yang3D, frame } = createYinYangParts();
+  const { yin3D, yang3D, frame, glassPanels } = createYinYangParts();
   
   // Export Assembly
-  exportSTL('yinyang_assembly.stl', [yin3D, yang3D, frame]);
+  exportSTL('yinyang_assembly.stl', [yin3D, yang3D, frame, glassPanels]);
   
   // Export Parts
   exportSTL('yin.stl', yin3D);
   exportSTL('yang.stl', yang3D);
+  exportSTL('glass_panels.stl', glassPanels);
   
   // Split Frame
   const { frameLeft, frameRight } = splitFrame(frame, CONFIG.RADIUS);
