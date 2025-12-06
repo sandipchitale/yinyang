@@ -328,6 +328,20 @@ const createGlassPanels = (radius: number, yinRingSolid: any, yangRingSolid: any
   // @ts-ignore
   glassSphere = subtract(glassSphere, yangRingSolid);
   
+  // Explicitly cut the Tracks (Grooves) to ensure clearance
+  // Even if Frame Rings overlaps, this ensures the specific profile is clear.
+  const grooveProfile = getTRailProfile(radius, CONFIG.RAIL.CLEARANCE);
+  // @ts-ignore
+  const yinGroove = extrudeRotate({ segments: CONFIG.SEGMENTS }, grooveProfile);
+  // @ts-ignore
+  let yangGroove = extrudeRotate({ segments: CONFIG.SEGMENTS }, grooveProfile);
+  yangGroove = rotateX(Math.PI / 2, yangGroove);
+  
+  // @ts-ignore
+  glassSphere = subtract(glassSphere, yinGroove);
+  // @ts-ignore
+  glassSphere = subtract(glassSphere, yangGroove);
+  
   return glassSphere;
 };
 
