@@ -125,11 +125,12 @@ const getGearPlacement = (radius: number, xSign: number, ySign: number, zSign: n
 const createGear = () => {
   const { COUNT, MODULE, THICKNESS, HOLE_RADIUS } = CONFIG.GEARS;
   const profile = getGearProfile(COUNT, MODULE, HOLE_RADIUS);
-  let gear = extrudeLinear({ height: THICKNESS }, profile);
+  // @ts-ignore
+  let gearDisk = extrudeLinear({ height: THICKNESS }, profile);
   
   const hole = cylinder({ radius: HOLE_RADIUS, height: THICKNESS * 2 });
   // @ts-ignore
-  gear = subtract(gear, hole);
+  gearDisk = subtract(gearDisk, hole);
   
   // Add Visual Hole (Off-Center)
   // Pitch approx COUNT*MODULE/2.
@@ -137,26 +138,27 @@ const createGear = () => {
   const visualHoleDist = (COUNT * MODULE / 4); // Halfway to rim
   const visualHole = translate([visualHoleDist, 0, 0], cylinder({ radius: visualHoleR, height: THICKNESS * 2 }));
   // @ts-ignore
-  gear = subtract(gear, visualHole);
+  gearDisk = subtract(gearDisk, visualHole);
   
   // Center it in Z
-  gear = translate([0, 0, -THICKNESS / 2], gear);
+  gearDisk = translate([0, 0, -THICKNESS / 2], gearDisk);
   
-  // Add Axle on one side (+Z)
-  // Radius: Slightly larger than hole? Let's say 0.25 (Gear is ~3.0 dia).
-  // Height: Stick out 0.6.
+  // Add Axle to clear frame
+  // Frame Outer Radius ~ 11.4. Inner Gear at ~10.7. Gap ~0.7.
+  // Use 1.2 for safe clearance.
+  const axleExtension = 1.2;
   const axleRadius = 0.2;
-  const axleHeight = 0.6;
-  let axle = cylinder({ radius: axleRadius, height: axleHeight });
-  // Axle is centered at 0,0,0 (extending -H/2 to +H/2).
-  // We want it starting at Z = THICKNESS/2.
-  // Move it up by (THICKNESS/2 + Height/2).
-  axle = translate([0, 0, THICKNESS / 2 + axleHeight / 2], axle);
+
+  let axle = cylinder({ radius: axleRadius, height: axleExtension });
+  // Axle starts at THICKNESS/2
+  axle = translate([0, 0, THICKNESS / 2 + axleExtension / 2], axle);
   
+  // Add Second Gear (Outer)
+  // Positioned at end of axle
+  const outerGear = translate([0, 0, THICKNESS + axleExtension], gearDisk);
+
   // @ts-ignore
-  gear = union(gear, axle);
-  
-  return gear;
+  return union([gearDisk, axle, outerGear]);
 };
 
 // Create rail teeth
@@ -300,6 +302,73 @@ const createFrame = (radius: number) => {
       const allSlits = union(slitCutters);
       // @ts-ignore
       frame = subtract(frame, allSlits);
+  }
+
+  // Create Axle Supports (Corner Brackets connected to Frame Rings)
+  // Connects the rings to the gear axle lines
+  // @ts-ignore
+  const supports: any[] = [];
+  const supportThickness = 0.4; // Along the axle axis
+  const axleClearance = 0.25; // Radius of hole for axle
+  const frameHeight = CONFIG.FRAME.HEIGHT; // 2.0, so extends +/- 1.0
+
+  [radius, -radius].forEach(xBase => {
+      const xSign = Math.sign(xBase);
+      corners.forEach(ySign => {
+          corners.forEach(zSign => {
+              if (ySign === zSign) return;
+
+              const { x, y, z } = getGearPlacement(radius, xSign, ySign, zSign);
+              
+              // Position along Axle (X)
+              const supportCenterX = x + xSign * (0.2 + supportThickness / 2);
+              
+              // 1. Hub (Wraps around axle)
+              const hubRadius = 0.7;
+              // @ts-ignore
+              let hub = rotateY(Math.PI/2, cylinder({ radius: hubRadius, height: supportThickness }));
+              // @ts-ignore
+              hub = translate([supportCenterX, y, z], hub);
+              
+              // 2. Strut to Yin Ring (XY Plane, Z=0)
+              // Ring Z-extents are [-1, 1]. Gear Z is ~1.6.
+              // Connect from Hub (Z=1.6) down to Ring Top (Z=1.0).
+              const zRingEdge = zSign * (frameHeight / 2 - 0.1); // Overlap slightly
+              const strutZCenter = (z + zRingEdge) / 2;
+              const strutZHeight = Math.abs(z - zRingEdge);
+              // Width matches Hub
+              // @ts-ignore
+              const strutZ = cuboid({ size: [supportThickness, hubRadius * 1.8, strutZHeight], center: [supportCenterX, y, strutZCenter] });
+              
+              // 3. Strut to Yang Ring (XZ Plane, Y=0)
+              // Ring Y-extents are [-1, 1]. Gear Y is ~1.6.
+              const yRingEdge = ySign * (frameHeight / 2 - 0.1);
+              const strutYCenter = (y + yRingEdge) / 2;
+              const strutYHeight = Math.abs(y - yRingEdge);
+              // @ts-ignore
+              const strutY = cuboid({ size: [supportThickness, strutYHeight, hubRadius * 1.8], center: [supportCenterX, strutYCenter, z] });
+              
+              // @ts-ignore
+              let bracket = union([hub, strutZ, strutY]);
+              
+              // Axle Hole
+              // @ts-ignore
+              const hole = translate([supportCenterX, y, z], rotateY(Math.PI/2, cylinder({ radius: axleClearance, height: supportThickness * 2 })));
+              
+              // @ts-ignore
+              bracket = subtract(bracket, hole);
+              
+              supports.push(bracket);
+          });
+      });
+  });
+
+  if (supports.length > 0) {
+      // @ts-ignore
+      const allSupports = union(supports);
+      // Union with frame
+      // @ts-ignore
+      frame = union(frame, allSupports);
   }
   
   return { frame, yinRingSolid, yangRingSolid };
