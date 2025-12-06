@@ -285,6 +285,7 @@ const createFrame = (radius: number) => {
       const xSign = Math.sign(xBase);
       corners.forEach(ySign => {
           corners.forEach(zSign => {
+               if (ySign === zSign) return;
                const { x, y, z } = getGearPlacement(radius, xSign, ySign, zSign);
                // @ts-ignore
                slitCutters.push(translate([x, y, z], cutter));
@@ -376,8 +377,10 @@ const createYinYangParts = () => {
     
     corners.forEach(ySign => {
       corners.forEach(zSign => {
-          // Enable ALL 4 Quadrants as requested
-          
+          // Filter Gears: Flip to Anti-Diagonal (Mixed Signs).
+          // Keep if ySign != zSign.
+          if (ySign === zSign) return;
+
           const { x, y, z } = getGearPlacement(RADIUS, xSign, ySign, zSign);
           
           // Rotation
