@@ -34,11 +34,12 @@ const CONFIG = {
     HEIGHT: 2,
   },
   GEARS: {
-    COUNT: 24, // Double teeth
+    COUNT: 24, // Inner Gear (matches rail)
+    OUTER_COUNT: 46, // Outer Drive Gear (Adjusted to user preference)
     MODULE: 0.1,
     THICKNESS: 0.3,
     HOLE_RADIUS: 0.15,
-    DISTANCE_FROM_INTERSECTION: 1.5, // How far along the rail from crossing
+    DISTANCE_FROM_INTERSECTION: 1.5,
   }
 };
 
@@ -46,18 +47,12 @@ const CONFIG = {
 const getTRailProfile = (radius: number, clearance: number = 0) => {
   const { STEM_LENGTH, HEAD_WIDTH, HEAD_THICKNESS, HEIGHT } = CONFIG.RAIL;
   
-  // Unified Logic:
-  // When clearance = 0, we get the exact rail dimensions.
-  // When clearance > 0, we get the expanded cutter dimensions.
-  
-  // Stem Bounds
   const stemStart = radius - clearance;
   const stemEnd = radius + STEM_LENGTH;
   const stemWidth = stemEnd - stemStart;
   const stemHeight = HEIGHT + clearance * 2;
   const stemCenter = [stemStart + stemWidth / 2, 0];
   
-  // Head Bounds
   const headStart = radius + STEM_LENGTH - clearance;
   const headEnd = radius + STEM_LENGTH + HEAD_THICKNESS + clearance;
   const headWidth = headEnd - headStart;
@@ -97,11 +92,6 @@ const getGearProfile = (toothCount: number, module: number, holeRadius: number) 
   
   // Subtract hole
   const gearShape = polygon({ points });
-  // JSCAD V2 boolean logic usually requires strict types. 
-  // We'll create the hole as a separate shape and subtract in 3D or 2D.
-  // Let's do 2D subtract if possible, but polygon doesn't support holes easily in this primitive API.
-  // We will subtract the cylinder in 3D.
-  
   return gearShape;
 };
 
@@ -123,39 +113,48 @@ const getGearPlacement = (radius: number, xSign: number, ySign: number, zSign: n
 };
 
 const createGear = () => {
-  const { COUNT, MODULE, THICKNESS, HOLE_RADIUS } = CONFIG.GEARS;
-  const profile = getGearProfile(COUNT, MODULE, HOLE_RADIUS);
+  const { COUNT, OUTER_COUNT, MODULE, THICKNESS, HOLE_RADIUS } = CONFIG.GEARS;
+  
+  // 1. Inner Gear (matches Rail)
+  const innerProfile = getGearProfile(COUNT, MODULE, HOLE_RADIUS);
   // @ts-ignore
-  let gearDisk = extrudeLinear({ height: THICKNESS }, profile);
+  let gearDisk = extrudeLinear({ height: THICKNESS }, innerProfile);
   
   const hole = cylinder({ radius: HOLE_RADIUS, height: THICKNESS * 2 });
   // @ts-ignore
   gearDisk = subtract(gearDisk, hole);
   
-  // Add Visual Hole (Off-Center)
-  // Pitch approx COUNT*MODULE/2.
+  // Visual Hole
   const visualHoleR = MODULE * 0.8;
-  const visualHoleDist = (COUNT * MODULE / 4); // Halfway to rim
+  const visualHoleDist = (COUNT * MODULE / 4); 
   const visualHole = translate([visualHoleDist, 0, 0], cylinder({ radius: visualHoleR, height: THICKNESS * 2 }));
   // @ts-ignore
   gearDisk = subtract(gearDisk, visualHole);
   
-  // Center it in Z
+  // Center Z
   gearDisk = translate([0, 0, -THICKNESS / 2], gearDisk);
   
-  // Add Axle to clear frame
-  // Frame Outer Radius ~ 11.4. Inner Gear at ~10.7. Gap ~0.7.
-  // Use 1.2 for safe clearance.
+  // 2. Axle
   const axleExtension = 1.2;
   const axleRadius = 0.2;
-
   let axle = cylinder({ radius: axleRadius, height: axleExtension });
-  // Axle starts at THICKNESS/2
   axle = translate([0, 0, THICKNESS / 2 + axleExtension / 2], axle);
   
-  // Add Second Gear (Outer)
-  // Positioned at end of axle
-  const outerGear = translate([0, 0, THICKNESS + axleExtension], gearDisk);
+  // 3. Outer Gear (Larger)
+  const outerProfile = getGearProfile(OUTER_COUNT, MODULE, HOLE_RADIUS);
+  // @ts-ignore
+  let outerGear = extrudeLinear({ height: THICKNESS }, outerProfile);
+  // @ts-ignore
+  outerGear = subtract(outerGear, hole); // Same axle hole
+  
+  // Visual Hole for Outer Gear (adjusted distance)
+  const outerVisualDist = (OUTER_COUNT * MODULE / 4);
+  const outerVisualHole = translate([outerVisualDist, 0, 0], cylinder({ radius: visualHoleR, height: THICKNESS * 2 }));
+  // @ts-ignore
+  outerGear = subtract(outerGear, outerVisualHole);
+
+  // Position Outer Gear at end of axle
+  outerGear = translate([0, 0, THICKNESS + axleExtension - THICKNESS/2], outerGear);
 
   // @ts-ignore
   return union([gearDisk, axle, outerGear]);
