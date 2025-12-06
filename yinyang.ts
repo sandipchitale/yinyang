@@ -1,19 +1,20 @@
 // @ts-ignore
 import primitives from '@jscad/modeling/src/primitives/index.js';
-const { circle, rectangle, cuboid, sphere, cylinder, polygon } = primitives;
 // @ts-ignore
 import extrusions from '@jscad/modeling/src/operations/extrusions/index.js';
-const { extrudeLinear, extrudeRotate } = extrusions;
 // @ts-ignore
 import transforms from '@jscad/modeling/src/operations/transforms/index.js';
-const { translate, rotateZ, rotateX, rotateY } = transforms;
 // @ts-ignore
 import booleans from '@jscad/modeling/src/operations/booleans/index.js';
-const { union, subtract, intersect } = booleans;
 // @ts-ignore
 import io from '@jscad/io/index.js';
-const { stlSerializer } = io;
 import * as fs from 'fs';
+
+const { circle, rectangle, cuboid, sphere, cylinder, polygon } = primitives;
+const { extrudeLinear, extrudeRotate } = extrusions;
+const { translate, rotateZ, rotateX, rotateY } = transforms;
+const { union, subtract, intersect } = booleans;
+const { stlSerializer } = io;
 
 // Configuration
 const CONFIG = {
@@ -102,6 +103,23 @@ const getGearProfile = (toothCount: number, module: number, holeRadius: number) 
   // We will subtract the cylinder in 3D.
   
   return gearShape;
+};
+
+const getGearPlacement = (radius: number, xSign: number, ySign: number, zSign: number) => {
+  const { RADIUS, RAIL, GEARS } = CONFIG;
+  
+  const gearPitchRadius = (GEARS.COUNT * GEARS.MODULE) / 2;
+  const offset = (RAIL.HEAD_WIDTH / 2) + gearPitchRadius;
+  const headCenterR = RADIUS + RAIL.STEM_LENGTH + RAIL.HEAD_THICKNESS / 2;
+
+  const y = ySign * offset;
+  const z = zSign * offset;
+
+  // Accurate X Position
+  const xSq = headCenterR * headCenterR - y * y;
+  const x = (xSq > 0) ? xSign * Math.sqrt(xSq) : xSign * headCenterR;
+
+  return { x, y, z };
 };
 
 const createGear = () => {
@@ -244,37 +262,31 @@ const createFrame = (radius: number) => {
   // Gears are at (+/- Offset, +/- Offset) in YZ plane.
   // Offset = HeadWidth/2 + PitchR.
   
-  const gearPitchRadius = (CONFIG.GEARS.COUNT * CONFIG.GEARS.MODULE) / 2;
-  const gearOuterRadius = gearPitchRadius + CONFIG.GEARS.MODULE;
-  const offset = (CONFIG.RAIL.HEAD_WIDTH / 2) + gearPitchRadius;
-  
-  // Calculate Gear Radial Center (X) relative to origin
-  const headCenterR = radius + CONFIG.RAIL.STEM_LENGTH + CONFIG.RAIL.HEAD_THICKNESS / 2;
+  const corners = [-1, 1];
   
   // Cutter Dimensions
   // Thickness (X): Reduced clearance. Gear Thick + 0.1.
   const slitThickness = CONFIG.GEARS.THICKNESS + 0.1; 
   // Face (Y/Z): Outer Diameter + Reduced Clearance (0.3).
-  const slitFaceSize = (gearOuterRadius * 2) + 0.3; 
+  const slitFaceSize = ((CONFIG.GEARS.COUNT * CONFIG.GEARS.MODULE / 2) + CONFIG.GEARS.MODULE) * 2 + 0.3; 
   
   // @ts-ignore
   const slitCutters: any[] = [];
-  const corners = [-1, 1];
   
+
   [radius, -radius].forEach(xBase => {
+    // Cutter Dimensions
+    const slitThickness = CONFIG.GEARS.THICKNESS + 0.1; 
+    const slitFaceSize = ((CONFIG.GEARS.COUNT * CONFIG.GEARS.MODULE / 2) + CONFIG.GEARS.MODULE) * 2 + 0.3; 
+    
+    // @ts-ignore
+    const cutter = cuboid({ size: [slitThickness, slitFaceSize, slitFaceSize] });
+
       const xSign = Math.sign(xBase);
       corners.forEach(ySign => {
           corners.forEach(zSign => {
-               // Gear Center
-               const y = ySign * offset;
-               const z = zSign * offset;
-               
-               // Accurate X Position
-               const xSq = headCenterR*headCenterR - y*y;
-               const x = (xSq > 0) ? xSign * Math.sqrt(xSq) : xSign * headCenterR;
-               
-               // Cutter size
-               const cutter = cuboid({ size: [slitThickness, slitFaceSize, slitFaceSize] });
+               const { x, y, z } = getGearPlacement(radius, xSign, ySign, zSign);
+               // @ts-ignore
                slitCutters.push(translate([x, y, z], cutter));
           });
       });
@@ -337,18 +349,11 @@ const createYinYangParts = () => {
   const glassPanels = createGlassPanels(RADIUS, yinRingSolid, yangRingSolid);
 
   // Generate Gears
+
+  // Generate Gears
   const baseGear = createGear();
   // @ts-ignore
   const gears: any[] = [];
-  
-  // Double teeth (12 -> 24) for bigger size
-  const gearPitchRadius = (24 * GEARS.MODULE) / 2;
-  const offset = (CONFIG.RAIL.HEAD_WIDTH / 2) + gearPitchRadius;
-  
-  // Tangent Adjustment?
-  // Curved Rails. At offset Y, X is not exactly Radius.
-  // x = sqrt(R^2 - y^2).
-  const headCenterR = RADIUS + CONFIG.RAIL.STEM_LENGTH + CONFIG.RAIL.HEAD_THICKNESS / 2;
   
   const corners = [-1, 1];
   
@@ -359,60 +364,16 @@ const createYinYangParts = () => {
       corners.forEach(zSign => {
           // Enable ALL 4 Quadrants as requested
           
-          // Gear Center in YZ plane of intersection
-          const yLocal = ySign * offset;
-          const zLocal = zSign * offset;
-          
-          // Radial Position X
-          // We need X such that the gear touches the rail at the correct point.
-          // Yin Rail contact: (x, yLocal, z_contact_Yin). z_contact_Yin = +/- width/2.
-          // Wait, Gear Z center is zLocal. Contact Z is zLocal - r (towards center).
-          // If zSign is +, zLocal > 0. Contact at zLocal - r = width/2. Correct.
-          // So contact point is at (x, yLocal, z_contact).
-          // We need (x^2 + yLocal^2) = R_rail^2 for Yin Rail?
-          // Yin Rail is circle in XY.
-          // So x = +/- sqrt(R^2 - yLocal^2).
-          
-          let xSq = headCenterR*headCenterR - yLocal*yLocal;
-          let x = (xSq > 0) ? xSign * Math.sqrt(xSq) : xSign * headCenterR;
-          
-          // Check Yang Rail contact?
-          // Yang Rail in XZ.
-          // x = +/- sqrt(R^2 - zLocal^2).
-          // Is x the same?
-          // yLocal = +/- Offset. zLocal = +/- Offset.
-          // So magnitudes are same. So X is consistent!
-          // Perfect. The intersection geometry supports this valid X.
+          const { x, y, z } = getGearPlacement(RADIUS, xSign, ySign, zSign);
           
           // Rotation
-          // Axis is Radial Vector (x, yLocal, zLocal)?
-          // No. Gear is in YZ plane (tangent plane Approx).
-          // Axis should be Normal to the YZ plane... i.e., X Axis (Radial).
-          // But since we are at (y, z), Radial vector is (x, y, z).
-          // Ideally Gear Axis aligns with Radial Vector.
-          // Rotate BaseZ to (x, y, z).
-          
-          // Base Gear Axis Z.
-          // 1. Rotate Y 90 -> Base X.
-          // 2. LookAt?
-          
-          // Simpler: Rotate Y 90 -> X Axis.
-          // Then rotate around Z by atan2(y, x). (Yaw)
-          // Then rotate around Y by atan2(z, x)? (Pitch)
-          // Actually, use lookAt or Matrix.
-          
+          // Axis is roughly X axis (Radial).
           // We'll trust the "Radial Axis" logic implies roughly Pointing Outward.
-          // Since y/x is small, and z/x is small.
-          // Approx X axis.
           
           let g = rotateY(Math.PI / 2, baseGear); // Axis X
           
-          // Adjust for Y/Z position angle?
-          // The frame rotates.
-          // Let's leave it axis-aligned to X for now (Standard "Corner" visualization).
-          // With offset, visually it works.
-          
-          g = translate([x, yLocal, zLocal], g);
+          // @ts-ignore
+          g = translate([x, y, z], g);
           gears.push(g);
       });
     });
