@@ -135,10 +135,18 @@ const createGear = () => {
   gearDisk = translate([0, 0, -THICKNESS / 2], gearDisk);
   
   // 2. Axle
-  const axleExtension = 1.2;
+  // 2. Axle
+  const gearDistance = 1.2;
+  const axleProtrusion = 0.5;
+  // Current Top of Outer Gear calculated as: THICKNESS + gearDistance
+  // We want axle to extend physically beyond that.
+  // Start of Axle: THICKNESS / 2
+  // End of Axle: THICKNESS + gearDistance + axleProtrusion
+  const axleLength = (THICKNESS + gearDistance + axleProtrusion) - (THICKNESS / 2);
+  
   const axleRadius = 0.2;
-  let axle = cylinder({ radius: axleRadius, height: axleExtension });
-  axle = translate([0, 0, THICKNESS / 2 + axleExtension / 2], axle);
+  let axle = cylinder({ radius: axleRadius, height: axleLength });
+  axle = translate([0, 0, THICKNESS / 2 + axleLength / 2], axle);
   
   // 3. Outer Gear (Larger)
   const outerProfile = getGearProfile(OUTER_COUNT, MODULE, HOLE_RADIUS);
@@ -153,8 +161,8 @@ const createGear = () => {
   // @ts-ignore
   outerGear = subtract(outerGear, outerVisualHole);
 
-  // Position Outer Gear at end of axle
-  outerGear = translate([0, 0, THICKNESS + axleExtension - THICKNESS/2], outerGear);
+  // Position Outer Gear at end of axle distance
+  outerGear = translate([0, 0, THICKNESS + gearDistance - THICKNESS/2], outerGear);
 
   // @ts-ignore
   return union([gearDisk, axle, outerGear]);
